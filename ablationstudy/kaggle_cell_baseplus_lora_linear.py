@@ -1,22 +1,32 @@
-# ============================================================
-# RSASE Ablation - Base+ LoRA Linear
-# Paste this whole file into one Kaggle notebook cell.
-# ============================================================
-RUN_VARIANT = 'lora_linear'  # fixed for this notebook
+import os
+import warnings
+
+os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
+os.environ["CPL_LOG"] = "/dev/null"
+os.environ["CPL_DEBUG"] = "OFF"
+
+warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", message="ShiftScaleRotate.*")
+
+import cv2
+
+try:
+    cv2.setLogLevel(0)
+except AttributeError:
+    pass
+
+warnings.filterwarnings(
+    "ignore",
+    message="ShiftScaleRotate is a special case of Affine.*"
+)
+
+import cv2
+cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+
+RUN_VARIANT = 'lora_linear'
 NOTEBOOK_TITLE = 'RSASE Ablation - Base+ LoRA Linear'
 
-import os, sys, subprocess, pathlib, urllib.request, base64, zlib, logging, warnings
-
-os.environ["PYTHONWARNINGS"] = "ignore"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-os.environ["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
-os.environ["PIP_ROOT_USER_ACTION"] = "ignore"
-warnings.filterwarnings("ignore")
-logging.captureWarnings(True)
-logging.getLogger("py.warnings").setLevel(logging.ERROR)
-logging.getLogger("transformers").setLevel(logging.ERROR)
-logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+import os, sys, subprocess, pathlib, urllib.request, base64, zlib
 
 DATA_ROOT = "/kaggle/input/datasets/aletbm/global-land-cover-mapping-openearthmap"
 TRAIN_IMAGES = f"{DATA_ROOT}/images/train"
@@ -33,67 +43,23 @@ OUT_DIR = f"/kaggle/working/runs/base_plus_{RUN_VARIANT}"
 
 print("Notebook:", NOTEBOOK_TITLE)
 print("Variant:", RUN_VARIANT)
-print("Checking Kaggle PyTorch...")
-import torch
-print("Torch:", torch.__version__, "CUDA:", torch.cuda.is_available())
-try:
-    import torchvision
-    print("Torchvision:", torchvision.__version__)
-except Exception as exc:
-    print("Torchvision check skipped:", repr(exc))
+print("Installing packages...")
+subprocess.check_call([
+    sys.executable, "-m", "pip", "install", "-q",
+    "torch==2.5.1", "torchvision==0.20.1",
+    "--index-url", "https://download.pytorch.org/whl/cu121"
+])
+subprocess.check_call([
+    sys.executable, "-m", "pip", "install", "-q",
+    "peft", "albumentations", "opencv-python-headless", "tqdm",
+    "hydra-core", "omegaconf", "iopath", "portalocker", "safetensors"
+])
 subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "torchao"], check=False)
-
-def ensure_package(import_name, pip_name=None):
-    pip_name = pip_name or import_name
-    try:
-        __import__(import_name)
-        print("OK", import_name)
-        return
-    except Exception as exc:
-        print(f"Installing {pip_name}; import {import_name} failed: {exc!r}")
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", pip_name])
-    except subprocess.CalledProcessError:
-        print(f"Normal install failed for {pip_name}; retrying without dependency resolution.")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--no-deps", pip_name])
-    __import__(import_name)
-    print("OK", import_name)
-
-def ensure_hydra_stack():
-    try:
-        import hydra  # noqa: F401
-        import omegaconf  # noqa: F401
-        print("OK hydra")
-        print("OK omegaconf")
-        return
-    except Exception as exc:
-        print(f"Installing pinned Hydra stack; import failed: {exc!r}")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "PyYAML"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "antlr4-python3-runtime==4.9.3"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--no-deps", "omegaconf==2.3.0"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--no-deps", "hydra-core==1.3.2"])
-    import hydra  # noqa: F401
-    import omegaconf  # noqa: F401
-    print("OK hydra")
-    print("OK omegaconf")
-
-print("Checking/installing remaining packages...")
-ensure_hydra_stack()
-for import_name, pip_name in [
-    ("peft", "peft"),
-    ("albumentations", "albumentations"),
-    ("cv2", "opencv-python-headless"),
-    ("tqdm", "tqdm"),
-    ("iopath", "iopath"),
-    ("portalocker", "portalocker"),
-    ("safetensors", "safetensors"),
-]:
-    ensure_package(import_name, pip_name)
 
 print("Cloning/installing SAM2...")
 if not SAM2_DIR.exists():
     subprocess.check_call(["git", "clone", "https://github.com/facebookresearch/sam2.git", str(SAM2_DIR)])
-subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--no-deps", "-e", str(SAM2_DIR)])
+subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "-e", str(SAM2_DIR)])
 
 print("Downloading Base+ checkpoint...")
 CKPT_DIR.mkdir(parents=True, exist_ok=True)
@@ -137,3 +103,5 @@ print("Starting training:")
 print(" ".join(cmd))
 subprocess.check_call(cmd)
 print("DONE. Outputs saved under:", OUT_DIR)
+
+# !zip -r /kaggle/working/base_plus_lora_linear.zip /kaggle/working/runs/base_plus_lora_linear
