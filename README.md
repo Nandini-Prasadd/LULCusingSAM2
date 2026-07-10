@@ -45,18 +45,6 @@ The scripts use the OpenEarthMap dataset with the following Kaggle path:
 /kaggle/input/datasets/aletbm/global-land-cover-mapping-openearthmap
 ```
 
-Expected folder layout:
-
-```text
-global-land-cover-mapping-openearthmap/
-|-- images/
-|   |-- train/
-|   `-- val/
-`-- label/
-    |-- train/
-    `-- val/
-```
-
 The project uses 9 label IDs:
 
 | ID | Class |
@@ -103,8 +91,6 @@ Place the following checkpoints under `/kaggle/working/sam2/checkpoints/`:
 sam2_hiera_tiny.pt
 sam2_hiera_base_plus.pt
 ```
-
-If you run outside Kaggle, update the dataset, checkpoint, and output constants at the top or bottom of each script.
 
 ## Model Overview
 
